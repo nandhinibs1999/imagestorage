@@ -1,0 +1,257 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Image Gallery</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 0;
+            padding: 0;
+            background-color: #f2f2f2;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+
+        h1 {
+            text-align: center;
+            margin-top: 20px;
+        }
+
+        .gallery {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 10px;
+            padding: 20px;
+        }
+
+        .gallery-item {
+            position: relative;
+        }
+
+        .gallery-item img {
+            width: 100%;
+            height: auto;
+            border-radius: 5px;
+            box-shadow: 0px 0px 5px 0px rgba(0, 0, 0, 0.3);
+            transition: transform 0.3s ease;
+            cursor: pointer;
+        }
+
+        .gallery-item img:hover {
+            transform: scale(1.05);
+        }
+
+        .delete-button {
+            position: absolute;
+            top: 5px;
+            right: 5px;
+            padding: 5px 10px;
+            background-color: #ff0000;
+            color: #fff;
+            border: none;
+            border-radius: 3px;
+            cursor: pointer;
+            font-size: 12px;
+            opacity: 0;
+            transition: opacity 0.3s ease;
+        }
+
+        .delete-button:hover {
+            background-color: #cc0000;
+        }
+
+        .gallery-item:hover .delete-button {
+            opacity: 1;
+        }
+
+        .download-button {
+            position: absolute;
+            bottom: 5px;
+            right: 5px;
+            padding: 5px 10px;
+            background-color: #007bff;
+            color: #fff;
+            border: none;
+            border-radius: 3px;
+            cursor: pointer;
+            font-size: 12px;
+            opacity: 0;
+            transition: opacity 0.3s ease;
+        }
+
+        .download-button:hover {
+            background-color: #0056b3;
+        }
+
+        .gallery-item:hover .download-button {
+            opacity: 1;
+        }
+
+        .logout-button {
+            margin-top: 20px;
+            padding: 10px 20px;
+            background-color: #007bff;
+            color: #fff;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            transition: background-color 0.3s ease;
+        }
+
+        .logout-button:hover {
+            background-color: #0056b3;
+        }
+
+        .back-button {
+            margin-top: 20px;
+            padding: 10px 20px;
+            background-color: #6c757d;
+            color: #fff;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            transition: background-color 0.3s ease;
+        }
+
+        .back-button:hover {
+            background-color: #5a6268;
+        }
+    </style>
+</head>
+<body>
+    <h1>Image Gallery</h1>
+    <div class="gallery" id="imageGallery">
+        <!-- Images will be dynamically added here -->
+    </div>
+    <button class="back-button" onclick="goToImagesPage()">Back</button> <!-- Added back button -->
+    <button class="logout-button" onclick="logout()">Logout</button>
+
+    <!-- Load AWS SDK -->
+    <script src="https://sdk.amazonaws.com/js/aws-sdk-2.999.0.min.js"></script>
+    <script src="https://rawgit.com/aws/amazon-cognito-identity-js/master/dist/aws-cognito-sdk.min.js"></script>
+    <script src="https://rawgit.com/aws/amazon-cognito-identity-js/master/dist/amazon-cognito-identity.min.js"></script>
+    <script>
+        AWS.config.update({
+            accessKeyId: 'AKIA2JSUCOHHTEEASJ6C',
+            secretAccessKey: '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',
+            region: 'ap-south-1'
+        });
+
+        const s3 = new AWS.S3();
+        const bucketName = 'imagestorageplatform';
+
+        function fetchUserIdentifier() {
+            const poolData = {
+                UserPoolId: 'ap-south-1_3GMfIuHO1',
+                ClientId: '741ac0q7mtpfm0optgrgjmr96i'
+            };
+            const userPool = new AmazonCognitoIdentity.CognitoUserPool(poolData);
+            const cognitoUser = userPool.getCurrentUser();
+
+            if (cognitoUser) {
+                return cognitoUser.getUsername();
+            } else {
+                return null; // No user is authenticated
+            }
+        }
+
+        function downloadImage(url) {
+            const link = document.createElement('a');
+            link.href = url;
+            link.download = 'image.jpg'; // Set desired filename here
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+        }
+
+        function listObjects() {
+            const userIdentifier = fetchUserIdentifier();
+
+            if (!userIdentifier) {
+                console.error('No user is authenticated.');
+                return;
+            }
+
+            const params = {
+                Bucket: bucketName,
+                Prefix: 'images/' + userIdentifier + '/' // Filter objects based on the user's identifier
+            };
+
+            s3.listObjectsV2(params, (err, data) => {
+                if (err) {
+                    console.error('Error listing objects:', err);
+                    return;
+                }
+
+                const galleryDiv = document.getElementById('imageGallery');
+                galleryDiv.innerHTML = ''; // Clear existing images
+
+                data.Contents.forEach((object) => {
+                    const imageUrl = s3.getSignedUrl('getObject', { Bucket: bucketName, Key: object.Key });
+                    const galleryItem = document.createElement('div');
+                    galleryItem.classList.add('gallery-item');
+
+                    const img = document.createElement('img');
+                    img.src = imageUrl;
+                    galleryItem.appendChild(img);
+
+                    const deleteButton = document.createElement('button');
+                    deleteButton.innerText = 'Delete';
+                    deleteButton.classList.add('delete-button');
+                    deleteButton.onclick = () => deleteImage(object.Key);
+                    galleryItem.appendChild(deleteButton);
+
+                    const downloadButton = document.createElement('button');
+                    downloadButton.innerText = 'Download';
+                    downloadButton.classList.add('download-button');
+                    downloadButton.onclick = () => downloadImage(imageUrl);
+                    galleryItem.appendChild(downloadButton);
+
+                    galleryDiv.appendChild(galleryItem);
+                });
+            });
+        }
+
+        // Call listObjects function when the page loads
+        window.onload = listObjects;
+
+        function deleteImage(key) {
+            const userIdentifier = fetchUserIdentifier();
+
+            if (!userIdentifier) {
+                console.error('No user is authenticated.');
+                return;
+            }
+
+            const params = {
+                Bucket: bucketName,
+                Key: key
+            };
+
+            s3.deleteObject(params, (err, data) => {
+                if (err) {
+                    console.error('Error deleting object:', err);
+                    return;
+                }
+                console.log('Successfully deleted object');
+                // Refresh gallery after deletion
+                listObjects();
+            });
+        }
+
+        function logout() {
+            // Perform logout operation, clear any session data or tokens
+            // Redirect the user to the login page or a landing page
+            // Example:
+            window.location.href = 'logout.html';
+        }
+
+        function goToImagesPage() {
+            window.location.href = 'images.html'; // Redirect to the images page
+        }
+    </script>
+</body>
+</html>
