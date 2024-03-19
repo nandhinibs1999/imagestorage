@@ -16,3 +16,6 @@ such as the owner's ID, image URL, timestamp, etc. This will facilitate efficien
 
 User Permissions: Ensure that users can only view and delete their own images. 
 Implement authorization checks in your Lambda functions to enforce these permissions.
+
+Serverless Backend: Implement backend logic using AWS Lambda functions written in Python. 
+For example, you can use Lambda functions to validate user permissions, and handle image deletion requests.
